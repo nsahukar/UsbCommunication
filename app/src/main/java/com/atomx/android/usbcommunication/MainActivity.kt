@@ -6,37 +6,26 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbAccessory
-import android.hardware.usb.UsbDevice
-import android.hardware.usb.UsbDeviceConnection
-import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbManager
-import android.os.Build
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.atomx.android.usbcommunication.ui.theme.USBCommunicationTheme
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.InputStream
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     companion object {
-        private const val ACTION_USB_PERMISSION = "com.atomx.android.usbcommunication.USB_PERMISSION"
+        private const val ACTION_USB_PERMISSION =
+            "com.atomx.android.usbcommunication.USB_PERMISSION"
         private const val TAG = "MainActivity"
     }
 
@@ -63,24 +52,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            USBCommunicationTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
-            }
+        setContentView(R.layout.activity_main)
+
+        val writeTextView = findViewById<TextView>(R.id.btn_write)
+        writeTextView.setOnClickListener {
+            Thread { writeData("Hello from Android!") }.start()
         }
 
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
         val filter = IntentFilter(ACTION_USB_PERMISSION)
-        registerReceiver(usbReceiver, filter, RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(
+            this,
+            usbReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
 
         Log.d(TAG, "Intent action: ${intent.action}")
 
@@ -93,8 +81,12 @@ class MainActivity : ComponentActivity() {
                 } else {
                     Log.d(TAG, "Getting USB Permission")
                     val permissionIntent = Intent(ACTION_USB_PERMISSION)
-                    usbManager.requestPermission(accessory, PendingIntent.getBroadcast(this, 0, permissionIntent,
-                        PendingIntent.FLAG_IMMUTABLE))
+                    usbManager.requestPermission(
+                        accessory, PendingIntent.getBroadcast(
+                            this, 0, permissionIntent,
+                            PendingIntent.FLAG_IMMUTABLE
+                        )
+                    )
                 }
             } else {
                 Log.d(TAG, "Accessory Null")
@@ -133,6 +125,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun readData() {
         val buffer = ByteArray(1024)
         var bytesRead: Int
@@ -142,6 +135,9 @@ class MainActivity : ComponentActivity() {
                 if (bytesRead != -1) {
                     val received = String(buffer, 0, bytesRead)
                     Log.d(TAG, "Data received: $received")
+                    GlobalScope.launch(Dispatchers.Main) {
+                        Toast.makeText(applicationContext, received, Toast.LENGTH_LONG).show()
+                    }
                 } else {
                     break
                 }
@@ -162,30 +158,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    @Composable
-    fun Greeting(name: String, modifier: Modifier = Modifier) {
-        Column(modifier) {
-            Text(
-                text = "Hello $name!",
-                modifier = modifier
-            )
-            Button(onClick = {
-                if (outputStream != null) {
-                    // Example: Write to android accessory
-                    Thread { writeData("Hello from Android!") }.start()
-                }
-            }) {
-                Text(text = "Write")
-            }
-        }
-    }
 }
-
-//@Preview(showBackground = true)
-//@Composable
-//fun GreetingPreview() {
-//    USBCommunicationTheme {
-//        Greeting("Android")
-//    }
-//}
